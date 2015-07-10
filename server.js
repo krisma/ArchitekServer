@@ -9,7 +9,6 @@ var Unit         = require('./models/unit.js');
 var Group        = require('./models/group.js');
 var User         = require('./models/user.js');
 var mongoose     = require('mongoose');
-var jwt          = require('jsonwebtoken');
 var apn          = require('apn');
 var crypto       = require('crypto');
 var config       = require('./config.js');
@@ -18,7 +17,7 @@ var morgan       = require('morgan');
 var uuid         = require('node-uuid');
 
 
-mongoose.connect('mongodb://localhost:8888/');
+mongoose.connect(config.database);
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(morgan('dev'));
