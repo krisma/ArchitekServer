@@ -17,6 +17,7 @@ var underscore   = require('underscore');
 var morgan       = require('morgan');
 var uuid         = require('node-uuid');
 
+
 mongoose.connect('mongodb://localhost:8888/');
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
@@ -123,6 +124,23 @@ app.post('/signup', function (req, res) {
 			};
 		});
 });
+
+app.post('/skipsignup', function (req, res) {
+	if (req.body.security != config.secureLogin) {
+		return res.send({ success: false, message: 'Unauthorized registration' });
+	};
+	var token = uuid.v1();
+	var tmp = {
+		email: "Anonymous",
+		token: token
+	};
+	var user = new User(tmp);
+	user.save(function (err) {
+		if (err) throw err;
+		return res.send({ success: true, message: 'Logged in' });	
+	});
+});
+
 /*
 	End
 	*/
@@ -618,7 +636,7 @@ app.post('/showunitmap', function (req, res) {
 /* 
 	Server setup
 	*/
-	var server = app.listen(8080, function () {
+	var server = app.listen(process.env.PORT || 8080, function () {
 		var host = server.address().address;
 		var port = server.address().port;
 		console.log('Architekt listening at http://%s:%s', host, port);
