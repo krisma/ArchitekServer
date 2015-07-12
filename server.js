@@ -1,8 +1,12 @@
+/*
+	Architek Server V 0.0.1
+*/
 var http         = require('http');
 var express      = require('express');
 var app          = express();
 var async        = require('async');
 var bodyParser   = require('body-parser');
+var Institute    = require('./models/institute.js')
 var Building     = require('./models/building.js');
 var Floor        = require('./models/floor.js');
 var Unit         = require('./models/unit.js');
@@ -15,12 +19,18 @@ var config       = require('./config.js');
 var underscore   = require('underscore');
 var morgan       = require('morgan');
 var uuid         = require('node-uuid');
-
+var AWS          = require('aws-sdk');
+var S3FS         = require('s3fs');
+var multiparty   = require('connect-multiparty');
+var multipartyMiddleware = multiparty();
+var awsjson      = require('./aws.json');
+var s3fs         = new S3FS('architek-hq', awsjson);
 
 mongoose.connect(config.database);
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(morgan('dev'));
+
 // Encrypt using openSSL, aes-256-cbc
 var encryptPassword = function (password, callback) {
 	var cipher = crypto.createCipher('aes-256-cbc', config.crypto);
@@ -125,8 +135,8 @@ app.post('/signup', function (req, res) {
 });
 
 app.post('/skipsignup', function (req, res) {
-	if (req.body.security != config.secureLogin) {
-		return res.send({ success: false, message: 'Unauthorized registration' });
+	if (req.body.secret != config.secureLogin) {
+		return res.send({ success: false, message: 'Unauthorized registration.' });
 	};
 	var token = uuid.v1();
 	var tmp = {
@@ -136,7 +146,7 @@ app.post('/skipsignup', function (req, res) {
 	var user = new User(tmp);
 	user.save(function (err) {
 		if (err) throw err;
-		return res.send({ success: true, message: 'Logged in' });	
+		return res.send({ success: true, token: token });	
 	});
 });
 
@@ -218,6 +228,7 @@ app.post('/signin', function (req, res) {
 	=============
 	Securely upload the floorplans to server
 	@params
+		secret: secret to upload
 		name: name of the unit
 		coordinates: coordinates of four vertices of the unit
 		floors: array of floor object, in form of:
@@ -226,11 +237,11 @@ app.post('/signin', function (req, res) {
 	@rtn
 	*/
 // Get form
-app.get('/secureupload', function(req, res){
+app.get('/secureupload', function (req, res) {
 	var html = '<form action="/secureupload" method="post">' +
 
-	'Security code:' +
-	'<input type="password" name="security" placeholder="Password" />' +
+	'Secret:' +
+	'<input type="password" name="secret" placeholder="Password" />' +
 	'<br><br>' +
 
 	'Unit name:' +
@@ -255,7 +266,7 @@ app.get('/secureupload', function(req, res){
 });
 // Validation
 validateSecureUploadParams = function (req, callback) {
-	if (!req.body.security) {
+	if (!req.body.secret) {
 		return callback(1);
 	};
 	if (!req.body.unitName) {
@@ -272,6 +283,7 @@ validateSecureUploadParams = function (req, callback) {
 	};
 	return callback(0);
 } ;
+app.post(multipartyMiddleware);
 // Validation middleware
 app.post('/secureupload', function (req, res, next) {
 	validateSecureUploadParams(req, function (rtn) {
@@ -296,9 +308,10 @@ app.post('/secureupload', function (req, res, next) {
 		};
 	});
 });
+
 // Request handler
 app.post('/secureupload', function (req, res){
-	if (req.body.security != config.secureUpload) { 
+	if (req.body.secret != config.secureUpload) { 
 		var html = 'Upload unauthorized!';
 		return res.send(html);
 	};
@@ -324,6 +337,382 @@ app.post('/secureupload', function (req, res){
 	End
 	*/
 
+/* 
+	Create Institute
+*/
+app.get('/createinstitute', function (req, res) {
+var html = '<form action="/createinstitute" method="post">' +
+
+	'Secret:' +
+	'<input type="password" name="secret" placeholder="Password" />' +
+	'<br><br>' +
+
+	'Name:' +
+	'<input type="text" name="name" placeholder="UCBerkeley" />' +
+	'<br><br>' +
+
+	'Coordinate1:' +
+	'<input type="text" name="coordinate1" placeholder="1.234,2.345" />' +
+	'<br><br>' +
+	'Coordinate2:' +
+	'<input type="text" name="coordinate2" placeholder="1.234,2.345" />' +
+	'<br><br>' +
+	'Coordinate3:' +
+	'<input type="text" name="coordinate3" placeholder="1.234,2.345" />' +
+	'<br><br>' +
+	'Coordinate4:' +
+	'<input type="text" name="coordinate4" placeholder="1.234,2.345" />' +
+	'<br><br>' +
+
+
+	'<button type="submit">Submit</button>' +
+	'</form>';        
+	res.send(html);	
+});
+
+app.post('/createinstitute', function (req, res) {
+	if (req.body.secret != config.secureUpload) { 
+		var html = 'Upload unauthorized!';
+		return res.send(html);
+	};	
+	var arrayOfCoordinates = [];
+	var arrayOfCoordinatesInString = req.body.coordinate1.split(',');
+	for (var i=0; i < 2; i++) {
+		if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+			var html = 'Upload failed, coordinates not floats.';
+			return res.send(html);			
+		}
+		arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+		var coordinate1 = arrayOfCoordinates;
+	};
+	var arrayOfCoordinates = [];
+	var arrayOfCoordinatesInString = req.body.coordinate2.split(',');
+	for (var i=0; i < 2; i++) {
+		if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+			var html = 'Upload failed, coordinates not floats.';
+			return res.send(html);			
+		}
+		arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+		var coordinate2 = arrayOfCoordinates;
+	};
+	var arrayOfCoordinates = [];
+	var arrayOfCoordinatesInString = req.body.coordinate3.split(',');
+	for (var i=0; i < 2; i++) {
+		if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+			var html = 'Upload failed, coordinates not floats.';
+			return res.send(html);			
+		}
+		arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+		var coordinate3 = arrayOfCoordinates;
+	};
+	var arrayOfCoordinates = [];
+	var arrayOfCoordinatesInString = req.body.coordinate4.split(',');
+	for (var i=0; i < 2; i++) {
+		if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+			var html = 'Upload failed, coordinates not floats.';
+			return res.send(html);			
+		}
+		arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+		var coordinate4 = arrayOfCoordinates;
+	};
+  	var schema = {
+  		name: req.body.name,
+  		coordinates: {
+  			coordinate1: coordinate1,
+  			coordinate2: coordinate2,
+  			coordinate3: coordinate3,
+  			coordinate4: coordinate4
+  		},
+  		buildings: []
+  	};
+  	var institute = new Institute(schema);
+  	institute.save(function (err) {
+  		if (err) throw err;
+  		var html = req.body.name + ' is created successfully.';
+  		return res.send(html);
+  	});
+});
+/*
+	End
+*/
+
+
+
+/*
+	Get Institute Names
+	===================
+	Get a list of the names of all institutes
+	@params
+		token: user token
+	@rtn 
+*/
+app.get('/getinstitutenames', function (req, res) {
+	Institute.find({}, function (err, institutes) {
+		if (err) throw err;
+		res.json({ success: true, institutes: institutes });
+	});
+});
+/*
+	End
+*/
+
+/*
+	Create Building 
+*/
+app.get('/createbuilding', function (req, res) {
+var html = '<form action="/createbuilding" method="post">' +
+
+	'Secret:' +
+	'<input type="password" name="secret" placeholder="Password" />' +
+	'<br><br>' +
+
+	'Building Name:' +
+	'<input type="text" name="buildingname" placeholder="Evans Hall" />' +
+	'<br><br>' +
+
+	'Institute Name:' +
+	'<input type="text" name="institutename" placeholder="UCBerkeley" />' +
+	'<br><br>' +
+
+	'Default Floor:' +
+	'<input type="text" name="defaultfloor" placeholder="url to default floor" />' +
+	'<br><br>' +
+
+	'Coordinate1:' +
+	'<input type="text" name="coordinate1" placeholder="1.234,2.345" />' +
+	'<br><br>' +
+	'Coordinate2:' +
+	'<input type="text" name="coordinate2" placeholder="1.234,2.345" />' +
+	'<br><br>' +
+	'Coordinate3:' +
+	'<input type="text" name="coordinate3" placeholder="1.234,2.345" />' +
+	'<br><br>' +
+	'Coordinate4:' +
+	'<input type="text" name="coordinate4" placeholder="1.234,2.345" />' +
+	'<br><br>' +
+
+
+	'<button type="submit">Submit</button>' +
+	'</form>';        
+	res.send(html);		
+});
+app.post('/createbuilding', function (req, res) {
+	if (req.body.secret != config.secureUpload) { 
+		var html = 'Upload unauthorized!';
+		return res.send(html);
+	};	
+	if (!req.body.institutename) {
+		var html = 'Upload failed, institute not provided.';
+		return res.send(html);		
+	};
+	if (!req.body.buildingname) {
+		var html = 'Upload failed, building not provided.';
+		return res.send(html);		
+	};
+	if (!req.body.defaultfloor) {
+		var html = 'Upload failed, default floor not provided.';
+		return res.send(html);		
+	};
+	Institute.findOne({
+		name: req.body.institutename
+	}, function (err, institute) {
+		if (err) throw err;
+		if (!institute) {
+			var html = 'Upload failed, institute not found.';
+			return res.send(html);			
+		};
+		var arrayOfCoordinates = [];
+		var arrayOfCoordinatesInString = req.body.coordinate1.split(',');
+		for (var i=0; i < 2; i++) {
+			if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+				var html = 'Upload failed, coordinates not floats.';
+				return res.send(html);			
+			}
+			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+			var coordinate1 = arrayOfCoordinates;
+		};
+		var arrayOfCoordinates = [];
+		var arrayOfCoordinatesInString = req.body.coordinate2.split(',');
+		for (var i=0; i < 2; i++) {
+			if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+				var html = 'Upload failed, coordinates not floats.';
+				return res.send(html);			
+			}
+			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+			var coordinate2 = arrayOfCoordinates;
+		};
+		var arrayOfCoordinates = [];
+		var arrayOfCoordinatesInString = req.body.coordinate3.split(',');
+		for (var i=0; i < 2; i++) {
+			if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+				var html = 'Upload failed, coordinates not floats.';
+				return res.send(html);			
+			}
+			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+			var coordinate3 = arrayOfCoordinates;
+		};
+		var arrayOfCoordinates = [];
+		var arrayOfCoordinatesInString = req.body.coordinate4.split(',');
+		for (var i=0; i < 2; i++) {
+			if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+				var html = 'Upload failed, coordinates not floats.';
+				return res.send(html);			
+			}
+			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+			var coordinate4 = arrayOfCoordinates;
+		};
+
+		var avgLon = (coordinate1[0] + coordinate2[0] + coordinate3[0] + coordinate4[0]) / 4;
+		var avgLat = (coordinate1[1] + coordinate2[1] + coordinate3[1] + coordinate4[1]) / 4;
+
+		var schema = {
+	  		name: req.body.buildingname,
+	  		floors: [],
+	  		coordinates: {
+	  			coordinate1: coordinate1,
+	  			coordinate2: coordinate2,
+	  			coordinate3: coordinate3,
+	  			coordinate4: coordinate4
+	  		},
+	  		location: [avgLon, avgLat],
+	  		defaultfloor: req.body.defaultfloor
+  		};
+  		var building = new Building(schema);
+  		building.save(function (err, building) {
+  			if (err) throw err;
+  			institute.buildings.push(building.name);
+  			institute.save(function (err, institute) {
+  				if (err) throw err;
+  			});
+ 			var html = building.name + ' uploaded.';
+			return res.send(html);		 			
+  		});
+  	});
+});
+
+/*
+	End
+*/
+
+/*
+	Get Buildings Nearby
+*/
+app.get('/getbuildingsnearby', function (req, res) {
+	var coordinate = req.query.coordinate || req.headers['coordinate'];
+	if (!coordinate) {
+		res.json({ success: false, message: 'Coordinate not provided.' })
+	};
+	var arrayOfCoordinates = [];
+	var arrayOfCoordinatesInString = coordinate.split(',');
+	for (var i=0; i < 2; i++) {
+		if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+			res.json({ success: false, message: 'Coordinate not float.' })
+		}
+		arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+	};
+	Building.find({
+		location: { '$nearSphere': arrayOfCoordinates,
+					'$maxDistance': 1/(6378*18)
+		}
+	}, function (err, buildings) {
+		if (err) throw err;
+		res.json({ success: true, buildings: buildings });
+	});
+});
+/*
+	End
+*/
+
+/*
+	Create Floor
+*/
+app.get('/createfloor', function (req, res) {
+var html = '<form action="/createfloor" method="post">' +
+
+	'Secret:' +
+	'<input type="password" name="secret" placeholder="Password" />' +
+	'<br><br>' +
+
+	'Building Name:' +
+	'<input type="text" name="buildingname" placeholder="Evans Hall" />' +
+	'<br><br>' +
+
+	'Institute Name:' +
+	'<input type="text" name="institutename" placeholder="UCBerkeley" />' +
+	'<br><br>' +
+
+	'Floor Name:' +
+	'<input type="text" name="floorname" placeholder="1" />' +
+	'<br><br>' +
+
+	'Floor Map URL:' +
+	'<input type="text" name="url" placeholder="url://floor.jpg" />' +
+	'<br><br>' +
+
+	'<button type="submit">Submit</button>' +
+	'</form>';        
+	res.send(html);		
+});
+app.post('/createfloor', function (req, res) {
+	if (req.body.secret != config.secureUpload) { 
+		var html = 'Upload unauthorized!';
+		return res.send(html);
+	};	
+	if (!req.body.institutename) {
+		var html = 'Upload failed, institute not provided.';
+		return res.send(html);		
+	};
+	if (!req.body.buildingname) {
+		var html = 'Upload failed, building not provided.';
+		return res.send(html);		
+	};
+	if (!req.body.floorname) {
+		var html = 'Upload failed, floor not provided.';
+		return res.send(html);		
+	};
+	if (!req.body.url) {
+		var html = 'Upload failed, url not provided.';
+		return res.send(html);		
+	};
+	Institute.findOne({
+		name: req.body.institutename
+	}, function (err, institute) {
+		if (err) throw err;
+		if (!institute) {
+			var html = 'Upload failed, institute not found.';
+			return res.send(html);			
+		};
+
+		Building.findOne({
+			name: req.body.buildingname
+		}, function (err, building) {
+			if (!building) {
+				var html = 'Upload failed, building not found.';
+				return res.send(html);	
+			};
+			var schema = {
+				name: req.body.floorname,
+				map: req.body.url
+			}
+			var floor = new Floor(schema);
+			floor.save(function (err, floor) {
+				if (err) throw err;
+				building.floors.push(floor._id);
+				building.save(function (err) {
+					if (err) throw err;
+					var html = floor.name + ' uploaded.';
+					return res.send(html);	
+				});		
+			});
+		});
+  	});
+});
+
+/*
+	End
+*/
+
+
 /*
 	Token authentication middleware
 	@params
@@ -345,7 +734,7 @@ app.use(function (req, res, next) {
 			};
 		});
 	} else {
-		return res.status(403).send({ 
+		return res.send({ 
 			success: false, 
 			message: 'No token provided.' 
 		});
@@ -354,6 +743,9 @@ app.use(function (req, res, next) {
 /*
 	End
 	*/
+
+
+
 /*
 	Upload Location
 	===============
@@ -624,13 +1016,15 @@ app.post('/showunitmap', function (req, res, next) {
 app.post('/showunitmap', function (req, res) {
 	Unit.findOne({ name: req.body.name }, function (err,unit) {
 		if (err) throw err;
-		return res.json({ success: true, unit: JSON.Stringify(unit) });
+		if (!unit) {
+			return res.json({ success: false, message: 'Unit not found.' });
+		}
+		return res.json({ success: true, unit: unit });
 	});	
 });
 /*
 	End
 	*/
-
 
 /* 
 	Server setup
@@ -638,7 +1032,7 @@ app.post('/showunitmap', function (req, res) {
 	var server = app.listen(process.env.PORT || 8080, function () {
 		var host = server.address().address;
 		var port = server.address().port;
-		console.log('Architekt listening at http://%s:%s', host, port);
+		console.log('Architek listening at http://%s:%s', host, port);
 	});
 /*
 	End

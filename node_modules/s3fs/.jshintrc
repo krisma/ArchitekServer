@@ -1,0 +1,8 @@
+{
+  "latedef": "nofunc",
+  "nonbsp": true,
+  "undef": true,
+  "mocha": true,
+  "node": true,
+  "globalstrict": true
+}
