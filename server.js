@@ -1,5 +1,5 @@
-
-Architek Server V 0.0.1
+/*
+	Architek Server V 0.0.1
 */
 var http         = require('http');
 var express      = require('express');
