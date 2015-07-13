@@ -509,8 +509,8 @@ app.post('/createbuilding', function (req, res) {
 			var coordinate4 = arrayOfCoordinates;
 		};
 
-		var avgLon = (coordinate1[0] + coordinate2[0] + coordinate3[0] + coordinate4[0]) / 4;
-		var avgLat = (coordinate1[1] + coordinate2[1] + coordinate3[1] + coordinate4[1]) / 4;
+		var avgLat = (coordinate1[0] + coordinate2[0] + coordinate3[0] + coordinate4[0]) / 4;
+		var avgLon = (coordinate1[1] + coordinate2[1] + coordinate3[1] + coordinate4[1]) / 4;
 
 		var schema = {
 			name: req.body.buildingname,
@@ -567,7 +567,7 @@ app.post('/createbuilding', function (req, res) {
 		var arrayOfCoordinates = [];
 		var arrayOfCoordinatesInString = coordinate.split(',');
 		for (var i=0; i < 2; i++) {
-			if (isNaN(parseFloat(arrayOfCoordinatesInString[1-i]))) {
+			if (isNaN(parseFloat(arrayOfCoordinatesInString[1-si]))) {
 				return res.json({ success: false, message: 'Coordinate not float.' })
 			}
 			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
