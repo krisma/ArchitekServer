@@ -567,11 +567,12 @@ app.post('/createbuilding', function (req, res) {
 		var arrayOfCoordinates = [];
 		var arrayOfCoordinatesInString = coordinate.split(',');
 		for (var i=0; i < 2; i++) {
-			if (isNaN(parseFloat(arrayOfCoordinatesInString[1-i]))) {
+			if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
 				return res.json({ success: false, message: 'Coordinate not float.' })
 			}
-			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[1 - i]);
 		};
+		console.log(arrayOfCoordinates);
 		Building.find({
 			location: { '$nearSphere': arrayOfCoordinates,
 			'$maxDistance': 1/(6378*18)
