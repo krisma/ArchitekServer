@@ -1,0 +1,185 @@
+---
+title: Architek API
+
+language_tabs:
+  - shell
+
+toc_footers:
+
+
+includes:
+
+search: true
+---
+
+# Architek API
+
+Welcome to the Architek API doc. Following this doc step by step, you can have your app connected to our server.
+
+Our server currently locates at:
+
+`https://architek-server.herokuapp.com/`
+
+You may want to set it as environmental variable instead of hardcoding it just in case we change the url later.
+The relative url will not be change. For example:
+
+`ENV['url'] = 'https://architek-server.herokuapp.com'`
+
+# Version History
+
+## V0.0.1 - Farmer
+
+Features Added | Under | Description
+--------- | ---- | -------------
+Skip Signup | User | The user may choose not to sign up for now.
+Get Institute Names | Institute | Get a list of the names of all institutes.
+Get Building Names | Building | Get a list of the names of all buildings according to the name of an institute.
+Get Building Maps | Building | Get all maps of a building according to the name of the building.
+Get Buildings Nearby | Building | Get the details of all buildings nearby.
+
+# User
+
+## Skip Signup
+
+> Success:
+
+```json
+{
+  "success": true,
+  "token": "5209f570-282a-11e5-a9ff-2515748da0d9"
+}
+```
+
+> Failure:
+
+```json
+{
+  "success": false,
+  "message": "Unauthorized registration."
+}
+```
+
+The user may choose not to sign up for now. As a result, the user will get an anonymous account with a token for further use. Keep the token safe.
+
+### HTTP Request
+
+`POST url/skipsignup`
+
+### Query Parameters
+
+Parameter | Example | Description
+--------- | ------- | -----------
+secret | something like a secret | Hardcode in clients to skip sign up.
+
+<aside class="success">
+Store this token in Shared Preference or Core Data.
+</aside>
+
+
+# Institute
+
+## Get Institute Names
+
+> Success:
+
+```json
+{
+  "success": true,
+  "institutes": [
+    {
+      "_id": "55a249ffdcab1c39207b2057",
+      "name": "UCB",
+      "__v": 1,
+      "coordinates": {
+        "coordinate4": [4,5],
+        "coordinate3": [3,4],
+        "coordinate2": [2,3],
+        "coordinate1": [1,2]
+      },
+      "buildings": ["Evans"]
+    }
+  ]
+}
+```
+
+> Failure:
+
+```json
+{
+  "success": false,
+  "message": "Failed to authenticate token."
+}
+```
+```json
+{
+  "success": false,
+  "message": "No token provided."
+}
+```
+
+Get a list of the names of all institutes. 
+
+### HTTP Request
+
+`GET url/getinstitutenames`
+
+### Query Parameters
+
+Parameter | Example | Description
+--------- | ------- | -----------
+token | 5209f570-282a-11e5-a9ff-2515748da0d9 | Token is required for user authentication.
+
+# Building
+
+## Get Buildings Nearby
+
+> Success:
+
+```json
+{
+  
+  "success": true,
+  "buildings": [
+    {
+      "_id": "55a24a12dcab1c39207b2058",
+      "name": "Evans",
+      "location": [4,5],
+      "__v": 0,
+      "coordinates": {
+        "coordinate4": [7,8],
+        "coordinate3": [5,6],
+        "coordinate2": [3,4],
+        "coordinate1": [1,2]
+      },
+      "floors": []
+    }
+  ]
+}
+```
+
+> Failure:
+
+```json
+{
+  "success": false,
+  "message": "Coordinate not provided."
+}
+```
+```json
+{
+  "success": false,
+  "message": "Coordinate not float."
+}
+```
+
+### HTTP Request
+
+`GET url/getbuildingsnearby`
+
+### Query Parameters
+
+Parameter | Example | Description
+--------- | ------- | -----------
+token | 5209f570-282a-11e5-a9ff-2515748da0d9 | Token is required for user authentication.
+coordinate | 12.34, 56.78 | Coordinate of the user's current location.
+
