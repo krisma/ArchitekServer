@@ -18,11 +18,12 @@ var config       = require('./config.js');
 var underscore   = require('underscore');
 var morgan       = require('morgan');
 var uuid         = require('node-uuid');
+var sig          = require('amazon-s3-url-signer');
 // var AWS          = require('aws-sdk');
 // var S3FS         = require('s3fs');
 // var multiparty   = require('connect-multiparty');
 // var multipartyMiddleware = multiparty();
-// // var awsjson      = require('./aws.json');
+// var awsjson      = require('./aws.json');
 // var s3fs         = new S3FS('architek-hq', awsjson);
 
 mongoose.connect(config.database);
@@ -45,7 +46,7 @@ var decryptPassword = function (password, callback) {
 	callback(decrypted);
 };
 app.get('/welcome', function (req, res) {
-	res.send('Welcome!');
+	return res.send('Welcome!');
 });
 /*
 	+---------+
@@ -83,10 +84,10 @@ var validatePassword = function (password, callback) {
 // Validation middleware
 app.post('/signup', function (req, res, next) {
 	if (!req.body.email) {
-		res.json({ success: false, message: 'Email not provided.' })
+		return res.json({ success: false, message: 'Email not provided.' })
 	}
 	if (!req.body.password) {
-		res.json({ success: false, message: 'Password not provided.' })
+		return res.json({ success: false, message: 'Password not provided.' })
 	}
 	next();
 });
@@ -118,7 +119,7 @@ app.post('/signup', function (req, res) {
 					user.save(function (err, user) {
 						if (err) throw err;
 						console.log('User signed up successfully.');
-						res.json({ 
+						return res.json({ 
 							success: true,
 							token: token,
 							id: user._id
@@ -126,10 +127,10 @@ app.post('/signup', function (req, res) {
 					});	
 				}); 			
 			} else {
-				res.json({ success: false, message: 'Invalid password.' });
+				return res.json({ success: false, message: 'Invalid password.' });
 			};
 		} else {
-			res.json({ success: false, message: 'Invalid email.' });
+			return res.json({ success: false, message: 'Invalid email.' });
 		};
 	});
 });
@@ -225,7 +226,7 @@ app.post('/signin', function (req, res) {
 					user.save(function (err, user) {
 						if (err) throw err;
 						console.log('User signed in successfully.');
-						res.json({
+						return res.json({
 							success: true,
 							token: token,
 							id: user._id
@@ -260,103 +261,54 @@ app.post('/signin', function (req, res) {
 	@errors
 		'Upload unauthorized!'
 		'Upload failed, coordinates not floats.'
+		'Upload failed, institute exists.'
+*/
+app.get('/createinstitute', function (req, res) {
+	var html = '<form action="/createinstitute" method="post">' +
 
-	*/
-	app.get('/createinstitute', function (req, res) {
-		var html = '<form action="/createinstitute" method="post">' +
+	'Secret:' +
+	'<input type="password" name="secret" placeholder="Password" />' +
+	'<br><br>' +
 
-		'Secret:' +
-		'<input type="password" name="secret" placeholder="Password" />' +
-		'<br><br>' +
-
-		'Name:' +
-		'<input type="text" name="name" placeholder="UCBerkeley" />' +
-		'<br><br>' +
-
-		'Coordinate1:' +
-		'<input type="text" name="coordinate1" placeholder="1.234,2.345" />' +
-		'<br><br>' +
-		'Coordinate2:' +
-		'<input type="text" name="coordinate2" placeholder="1.234,2.345" />' +
-		'<br><br>' +
-		'Coordinate3:' +
-		'<input type="text" name="coordinate3" placeholder="1.234,2.345" />' +
-		'<br><br>' +
-		'Coordinate4:' +
-		'<input type="text" name="coordinate4" placeholder="1.234,2.345" />' +
-		'<br><br>' +
+	'Name:' +
+	'<input type="text" name="name" placeholder="UCBerkeley" />' +
+	'<br><br>' +
 
 
-		'<button type="submit">Submit</button>' +
-		'</form>';        
-		res.send(html);	
+	'<button type="submit">Submit</button>' +
+	'</form>';        
+	return res.send(html);	
+});
+
+app.post('/createinstitute', function (req, res) {
+	if (req.body.secret != config.secureUpload) { 
+		var html = 'Upload unauthorized!';
+		return res.send(html);
+	};	
+	Institute.findOne({
+		name: req.body.name
+	}, function (err, institute) {
+		if (err) throw err;
+		if (institute) {
+			var html = 'Upload failed, institute exists.';
+			return res.send(html);	
+		} else {
+			var schema = {
+				name: req.body.name,
+				buildings: []
+			};
+			var institute = new Institute(schema);
+			institute.save(function (err) {
+				if (err) throw err;
+				var html = req.body.name + ' is created successfully.';
+				return res.send(html);
+			});
+		};
 	});
-
-	app.post('/createinstitute', function (req, res) {
-		if (req.body.secret != config.secureUpload) { 
-			var html = 'Upload unauthorized!';
-			return res.send(html);
-		};	
-		var arrayOfCoordinates = [];
-		var arrayOfCoordinatesInString = req.body.coordinate1.split(',');
-		for (var i=0; i < 2; i++) {
-			if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
-				var html = 'Upload failed, coordinates not floats.';
-				return res.send(html);			
-			}
-			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
-			var coordinate1 = arrayOfCoordinates;
-		};
-		var arrayOfCoordinates = [];
-		var arrayOfCoordinatesInString = req.body.coordinate2.split(',');
-		for (var i=0; i < 2; i++) {
-			if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
-				var html = 'Upload failed, coordinates not floats.';
-				return res.send(html);			
-			}
-			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
-			var coordinate2 = arrayOfCoordinates;
-		};
-		var arrayOfCoordinates = [];
-		var arrayOfCoordinatesInString = req.body.coordinate3.split(',');
-		for (var i=0; i < 2; i++) {
-			if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
-				var html = 'Upload failed, coordinates not floats.';
-				return res.send(html);			
-			}
-			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
-			var coordinate3 = arrayOfCoordinates;
-		};
-		var arrayOfCoordinates = [];
-		var arrayOfCoordinatesInString = req.body.coordinate4.split(',');
-		for (var i=0; i < 2; i++) {
-			if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
-				var html = 'Upload failed, coordinates not floats.';
-				return res.send(html);			
-			}
-			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
-			var coordinate4 = arrayOfCoordinates;
-		};
-		var schema = {
-			name: req.body.name,
-			coordinates: {
-				coordinate1: coordinate1,
-				coordinate2: coordinate2,
-				coordinate3: coordinate3,
-				coordinate4: coordinate4
-			},
-			buildings: []
-		};
-		var institute = new Institute(schema);
-		institute.save(function (err) {
-			if (err) throw err;
-			var html = req.body.name + ' is created successfully.';
-			return res.send(html);
-		});
-	});
+});
 /*
 	End
-	*/
+*/
 
 
 
@@ -364,6 +316,8 @@ app.post('/signin', function (req, res) {
 	+---------------------+
 	| Get Institute Names |
 	+---------------------+
+	> Get a list of all institutes
+
 	Created at V0.0.1
 	@params
 		token: user token
@@ -371,21 +325,24 @@ app.post('/signin', function (req, res) {
 		success: true, institutes: institutes
 	@errors
 
-	*/
-	app.get('/getinstitutenames', function (req, res) {
-		Institute.find({}, function (err, institutes) {
-			if (err) throw err;
-			res.json({ success: true, institutes: institutes });
-		});
+*/
+app.get('/getinstitutenames', function (req, res) {
+	Institute.find({}, function (err, institutes) {
+		if (err) throw err;
+		return res.json({ success: true, institutes: institutes });
 	});
+});
 /*
 	End
-	*/
+*/
 
 /*
 	+-----------------+
 	| Create Building |
 	+-----------------+
+	> Create a building that belongs to the given institute.
+	> The fourCoordinates is for IOS and twoCoordinates is for Android.
+
 	Created at V0.0.1
 	@params
 		secret: the secret on server to upload maps
@@ -400,146 +357,299 @@ app.post('/signin', function (req, res) {
 		<buildingname> uploaded.
 	@errors
 		'Upload unauthorized!'
+		'Upload failed, building exists.'
 		'Upload failed, institute not provided.'
 		'Upload failed, building not provided.'
 		'Upload failed, default floor not provided.'
 		'Upload failed, institute not found.'
 		'Upload failed, coordinates not floats.'
-	*/
-	app.get('/createbuilding', function (req, res) {
-		var html = '<form action="/createbuilding" method="post">' +
+*/
+app.get('/createbuilding', function (req, res) {
+	var html = '<form action="/createbuilding" method="post">' +
 
-		'Secret:' +
-		'<input type="password" name="secret" placeholder="Password" />' +
-		'<br><br>' +
+	'Secret:' +
+	'<input type="password" name="secret" placeholder="Password" />' +
+	'<br><br>' +
 
-		'Building Name:' +
-		'<input type="text" name="buildingname" placeholder="Evans Hall" />' +
-		'<br><br>' +
+	'Building Name:' +
+	'<input type="text" name="buildingname" placeholder="Evans Hall" />' +
+	'<br><br>' +
 
-		'Institute Name:' +
-		'<input type="text" name="institutename" placeholder="UCBerkeley" />' +
-		'<br><br>' +
+	'Institute Name:' +
+	'<input type="text" name="institutename" placeholder="UCBerkeley" />' +
+	'<br><br>' +
 
-		'Default Floor:' +
-		'<input type="text" name="defaultfloor" placeholder="url to default floor" />' +
-		'<br><br>' +
+	'Default Floor:' +
+	'<input type="text" name="defaultfloor" placeholder="url to default floor" />' +
+	'<br><br>' +
 
-		'Coordinate1:' +
-		'<input type="text" name="coordinate1" placeholder="1.234,2.345" />' +
-		'<br><br>' +
-		'Coordinate2:' +
-		'<input type="text" name="coordinate2" placeholder="1.234,2.345" />' +
-		'<br><br>' +
-		'Coordinate3:' +
-		'<input type="text" name="coordinate3" placeholder="1.234,2.345" />' +
-		'<br><br>' +
-		'Coordinate4:' +
-		'<input type="text" name="coordinate4" placeholder="1.234,2.345" />' +
-		'<br><br>' +
+	'Two coordinates(SW, NE) <br>' +
+	'Coordinate SW:' +
+	'<input type="text" name="coordinatesw" placeholder="1.234,2.345" />' +
+	'<br><br>' +
+	'Coordinate NE:' +
+	'<input type="text" name="coordinatene" placeholder="1.234,2.345" />' +
+	'<br><br>' +
+
+	'Height:' +
+	'<input type="text" name="height" placeholder="8500" />' +
+	'<br><br>' +
+
+	'Width:' +
+	'<input type="text" name="width" placeholder="6500" />' +
+	'<br><br>' +
+
+	'Bearing:' +
+	'<input type="text" name="bearing" placeholder="50" />' +
+	'<br><br>' +
+
+	'Anchor coordinate:' +
+	'<input type="text" name="location" placeholder="1.234,2.345" />' +
+	'<br><br>' +
+
+	'Four coordinates<br>' + 
+	'Coordinate1:' +
+	'<input type="text" name="coordinate1" placeholder="1.234,2.345" />' +
+	'<br><br>' +
+	'Coordinate2:' +
+	'<input type="text" name="coordinate2" placeholder="1.234,2.345" />' +
+	'<br><br>' +
+	'Coordinate3:' +
+	'<input type="text" name="coordinate3" placeholder="1.234,2.345" />' +
+	'<br><br>' +
+	'Coordinate4:' +
+	'<input type="text" name="coordinate4" placeholder="1.234,2.345" />' +
+	'<br><br>' +
 
 
-		'<button type="submit">Submit</button>' +
-		'</form>';        
-		res.send(html);		
-	});
+	'<button type="submit">Submit</button>' +
+	'</form>';        
+	return res.send(html);		
+});
 app.post('/createbuilding', function (req, res) {
 	if (req.body.secret != config.secureUpload) { 
 		var html = 'Upload unauthorized!';
 		return res.send(html);
-	};	
-	if (!req.body.institutename) {
-		var html = 'Upload failed, institute not provided.';
-		return res.send(html);		
 	};
-	if (!req.body.buildingname) {
-		var html = 'Upload failed, building not provided.';
-		return res.send(html);		
-	};
-	if (!req.body.defaultfloor) {
-		var html = 'Upload failed, default floor not provided.';
-		return res.send(html);		
-	};
-	Institute.findOne({
-		name: req.body.institutename
-	}, function (err, institute) {
+	Building.findOne({
+		name: req.body.buildingname
+	}, function (err, building) {
 		if (err) throw err;
-		if (!institute) {
-			var html = 'Upload failed, institute not found.';
-			return res.send(html);			
-		};
-		var arrayOfCoordinates = [];
-		var arrayOfCoordinatesInString = req.body.coordinate1.split(',');
-		for (var i=0; i < 2; i++) {
-			if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
-				var html = 'Upload failed, coordinates not floats.';
-				return res.send(html);			
-			}
-			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
-			var coordinate1 = arrayOfCoordinates;
-		};
-		var arrayOfCoordinates = [];
-		var arrayOfCoordinatesInString = req.body.coordinate2.split(',');
-		for (var i=0; i < 2; i++) {
-			if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
-				var html = 'Upload failed, coordinates not floats.';
-				return res.send(html);			
-			}
-			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
-			var coordinate2 = arrayOfCoordinates;
-		};
-		var arrayOfCoordinates = [];
-		var arrayOfCoordinatesInString = req.body.coordinate3.split(',');
-		for (var i=0; i < 2; i++) {
-			if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
-				var html = 'Upload failed, coordinates not floats.';
-				return res.send(html);			
-			}
-			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
-			var coordinate3 = arrayOfCoordinates;
-		};
-		var arrayOfCoordinates = [];
-		var arrayOfCoordinatesInString = req.body.coordinate4.split(',');
-		for (var i=0; i < 2; i++) {
-			if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
-				var html = 'Upload failed, coordinates not floats.';
-				return res.send(html);			
-			}
-			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
-			var coordinate4 = arrayOfCoordinates;
-		};
-
-		var avgLat = (coordinate1[0] + coordinate2[0] + coordinate3[0] + coordinate4[0]) / 4;
-		var avgLon = (coordinate1[1] + coordinate2[1] + coordinate3[1] + coordinate4[1]) / 4;
-
-		var schema = {
-			name: req.body.buildingname,
-			floors: [],
-			coordinates: {
-				coordinate1: coordinate1,
-				coordinate2: coordinate2,
-				coordinate3: coordinate3,
-				coordinate4: coordinate4
-			},
-			location: [avgLon, avgLat],
-			defaultfloor: req.body.defaultfloor
-		};
-		var building = new Building(schema);
-		building.save(function (err, building) {
-			if (err) throw err;
-			institute.buildings.push(building.name);
-			institute.save(function (err, institute) {
+		if (building) {
+			var html = 'Upload failed, building exists.';
+			return res.send(html);
+		} else {
+			if (!req.body.institutename) {
+				var html = 'Upload failed, institute not provided.';
+				return res.send(html);
+			};
+			if (!req.body.buildingname) {
+				var html = 'Upload failed, building not provided.';
+				return res.send(html);
+			};
+			if (!req.body.defaultfloor) {
+				var html = 'Upload failed, default floor not provided.';
+				return res.send(html);
+			};
+			if (!req.body.height) {
+				var html = 'Upload failed, height not provided.';
+				return res.send(html);
+			};
+			if (!req.body.width) {
+				var html = 'Upload failed, width not provided.';
+				return res.send(html);
+			};
+			if (!req.body.bearing) {
+				var html = 'Upload failed, bearing not provided.';
+				return res.send(html);
+			};	
+			if (!req.body.location) {
+				var html = 'Upload failed, location not provided.';
+				return res.send(html);
+			};			
+			Institute.findOne({
+				name: req.body.institutename
+			}, function (err, institute) {
 				if (err) throw err;
+				if (!institute) {
+					var html = 'Upload failed, institute not found.';
+					return res.send(html);
+				};
+				if (!req.body.coordinate1) {
+					var html = 'Upload failed, coordinates not provided.';
+					return res.send(html);
+				};
+				var arrayOfCoordinates = [];
+				var arrayOfCoordinatesInString = req.body.coordinate1.split(',');
+				for (var i=0; i < 2; i++) {
+					if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+						var html = 'Upload failed, coordinates not floats.';
+						return res.send(html);
+					};
+					arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+					var coordinate1 = arrayOfCoordinates;
+				};
+				if (!req.body.coordinate2) {
+					var html = 'Upload failed, coordinates not provided.';
+					return res.send(html);	
+				};
+
+				var arrayOfCoordinates = [];
+				var arrayOfCoordinatesInString = req.body.coordinate2.split(',');
+				for (var i=0; i < 2; i++) {
+					if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+						var html = 'Upload failed, coordinates not floats.';
+						return res.send(html);			
+					};
+					arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+					var coordinate2 = arrayOfCoordinates;
+				};
+				if (!req.body.coordinate3) {
+					var html = 'Upload failed, coordinates not provided.';
+					return res.send(html);	
+				};
+
+				var arrayOfCoordinates = [];
+				var arrayOfCoordinatesInString = req.body.coordinate3.split(',');
+				for (var i=0; i < 2; i++) {
+					if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+						var html = 'Upload failed, coordinates not floats.';
+						return res.send(html);			
+					};
+					arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+					var coordinate3 = arrayOfCoordinates;
+				};
+				if (!req.body.coordinate4) {
+					var html = 'Upload failed, coordinates not provided.';
+					return res.send(html);	
+				};
+				var arrayOfCoordinates = [];
+				var arrayOfCoordinatesInString = req.body.coordinate4.split(',');
+				for (var i=0; i < 2; i++) {
+					if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+						var html = 'Upload failed, coordinates not floats.';
+						return res.send(html);			
+					};
+					arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+					var coordinate4 = arrayOfCoordinates;
+				};
+
+				if (!req.body.coordinatesw) {
+					var html = 'Upload failed, coordinates not provided.';
+					return res.send(html);	
+				};
+				var arrayOfCoordinates = [];
+				var arrayOfCoordinatesInString = req.body.coordinatesw.split(',');
+				for (var i=0; i < 2; i++) {
+					if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+						var html = 'Upload failed, coordinates not floats.';
+						return res.send(html);			
+					};
+					arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+					var coordinatesw = arrayOfCoordinates;
+				};
+				if (!req.body.coordinatene) {
+					var html = 'Upload failed, coordinates not provided.';
+					return res.send(html);	
+				};
+				var arrayOfCoordinates = [];
+				var arrayOfCoordinatesInString = req.body.coordinatene.split(',');
+				for (var i=0; i < 2; i++) {
+					if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+						var html = 'Upload failed, coordinates not floats.';
+						return res.send(html);			
+					};
+					arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[i]);
+					var coordinatene = arrayOfCoordinates;
+				};
+				var arrayOfCoordinates = [];
+				var arrayOfCoordinatesInString = req.body.location.split(',');
+				for (var i=0; i < 2; i++) {
+					if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+						var html = 'Upload failed, location not floats.';
+						return res.send(html);			
+					};
+					arrayOfCoordinates[1-i] = parseFloat(arrayOfCoordinatesInString[i]);
+					var location = arrayOfCoordinates;
+				};
+				if (isNaN(parseFloat(req.body.height))) {
+					var html = 'Upload failed, height not floats.';
+					return res.send(html);			
+				};
+				if (isNaN(parseFloat(req.body.width))) {
+					var html = 'Upload failed, width not floats.';
+					return res.send(html);			
+				};
+				if (isNaN(parseFloat(req.body.bearing))) {
+					var html = 'Upload failed, bearing not floats.';
+					return r.send(html);			
+				};
+				var height = parseFloat(req.body.height);
+				var width = parseFloat(req.body.width);
+				var bearing = parseFloat(req.body.bearing);
+				var schema = {
+					name: req.body.buildingname,
+					floors: [],
+					fourCoordinates: {
+						coordinate1: coordinate1,
+						coordinate2: coordinate2,
+						coordinate3: coordinate3,
+						coordinate4: coordinate4
+					},
+					twoCoordinates: {
+						coordinatesw: coordinatesw,
+						coordinatene: coordinatene
+					},
+					height: height,
+					width: width,
+					bearing: bearing,
+					location: location,
+					defaultfloor: req.body.defaultfloor
+				};
+				var building = new Building(schema);
+				building.save(function (err, building) {
+					if (err) throw err;
+					institute.buildings.push(building.name);
+					institute.save(function (err, institute) {
+						if (err) throw err;
+					});
+					var html = building.name + ' uploaded.';
+					return res.send(html);		 			
+				});
 			});
-			var html = building.name + ' uploaded.';
-			return res.send(html);		 			
-		});
+		};
 	});
 });
 
 /*
 	End
-	*/
+*/
+
+/*
+	+--------------------+
+	| Get Building Names |
+	+--------------------+
+	> Get a list of all buildings
+
+	Created at V0.0.1
+	@params
+		token: user token
+	@return
+		success: true, buildings: buildings
+	@errors
+
+*/
+app.get('/getbuildingnames', function (req, res) {
+	Building.find({}, function (err, buildings) {
+		if (err) throw err;
+		return res.json({ success: true, buildings: buildings });
+	});
+});
+/*
+	End
+*/
+
+
 
 /*
 	+----------------------+
@@ -552,36 +662,95 @@ app.post('/createbuilding', function (req, res) {
 	Created at V0.0.1
 	@params
 		token: user token
-		coordinate: the numeral coordinate of a location
+		coordinate: the numeral coordinate of a location (lat, lng)
 	@return
 		 success: true, buildings: buildings
 	@errors
 		 success: false, message: 'Coordinate not provided.'
 		 success: false, message: 'Coordinate not float.'
+		 success: false, message: 'Coordinates out of bound.'
 */
-	app.get('/getbuildingsnearby', function (req, res) {
-		var coordinate = req.query.coordinate || req.headers['coordinate'];
-		if (!coordinate) {
-			return res.json({ success: false, message: 'Coordinate not provided.' })
-		};
-		var arrayOfCoordinates = [];
-		var arrayOfCoordinatesInString = coordinate.split(',');
-		for (var i=0; i < 2; i++) {
-			if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
-				return res.json({ success: false, message: 'Coordinate not float.' })
-			}
-			arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[1 - i]);
-		};
-		console.log(arrayOfCoordinates);
-		Building.find({
-			location: { '$nearSphere': arrayOfCoordinates,
-			'$maxDistance': 1/(6378*18)
+app.get('/getbuildingsnearby', function (req, res) {
+	var coordinate = req.query.coordinate || req.headers['coordinate'];
+	if (!coordinate) {
+		return res.json({ success: false, message: 'Coordinate not provided.' })
+	};
+	var arrayOfCoordinates = [];
+	var arrayOfCoordinatesInString = coordinate.split(',');
+	for (var i=0; i < 2; i++) {
+		if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+			return res.json({ success: false, message: 'Coordinate not float.' })
 		}
-		}, function (err, buildings) {
-		if (err) throw err;
-		return res.json({ success: true, buildings: buildings });
-		});
+		arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[1 - i]);
+	};
+	console.log(arrayOfCoordinates);
+	if (arrayOfCoordinates[0] > 180 || arrayOfCoordinates[0] < -180 || arrayOfCoordinates[1] > 90 || arrayOfCoordinates[1] < -90) {
+		return res.json({ success: false, message: 'Coordinates out of bound.' });
+	};
+	Building.find({
+		location: { '$nearSphere': arrayOfCoordinates,
+		'$maxDistance': 1/(6378 * 4)
+	}
+	}, function (err, buildings) {
+	if (err) throw err;
+	return res.json({ success: true, buildings: buildings });
 	});
+});
+/*
+	End
+*/
+
+/*
+	+-------------------+
+	| Get Building Maps |
+	+-------------------+
+	> Get all the floorplans according to the given the coordinate of the building
+
+	Created at V0.0.1
+	@params
+		token: user token
+		location: the exact coordinate of the building
+	@return
+		success: true, floors: floors
+	@errors
+*/
+app.get('/getbuildingmaps', function (req, res) {
+	if (!req.query.location) {
+		return res.json({ success: false, message: "Location not provided." })
+	};
+	var arrayOfCoordinates = [];
+	var arrayOfCoordinatesInString = req.query.location.split(',');
+	for (var i=0; i < 2; i++) {
+		if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+			var html = 'Location not floats.';
+			return res.send(html);			
+		};
+		arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[1 - i]);
+		var coordinate = arrayOfCoordinates;
+	};
+	Building.findOne({
+		location: coordinate
+	}, function (err, building) {
+		if (err) throw err;
+		if (!building) {
+			return res.json({ success: false, message: "Building not found." })
+		} else {
+			async.map(building.floors, 
+			function (id, callback) {
+				console.log(id);
+				Floor.findOne({
+					_id: id
+				}, function (err, floor) {
+					console.log(floor.name);
+					callback(err, floor);
+				})
+			}, function (err, results) {
+					return res.json({ success: true, floors: results});
+			});		
+		};
+	});
+});
+
 /*
 	End
 */
@@ -595,95 +764,115 @@ app.post('/createbuilding', function (req, res) {
 	> and the url to the floor plan.
 
 	Created at V0.0.1
-	params
+	@params
 		secret: the secret on server to upload maps
 		buildingname: the name of the building
 		institutename: the name of the institute the building belongs to
 		floorname: the name of the floor, can be number
 		url: the url to the image of floor plan
+	@return
+		<floorname> uploaded.
+	@errors
+		'Upload unauthorized!
+		'Upload failed, institute not provided.'
+		'Upload failed, building not provided.'
+		'Upload failed, floor not provided.'
+		'Upload failed, url not provided.'
+		'Upload failed, institute not found.'
+		'Upload failed, building not found.'
+		'Upload failed, floor exists.'
 */
-	app.get('/createfloor', function (req, res) {
-		var html = '<form action="/createfloor" method="post">' +
+app.get('/createfloor', function (req, res) {
+	var html = '<form action="/createfloor" method="post">' +
 
-		'Secret:' +
-		'<input type="password" name="secret" placeholder="Password" />' +
-		'<br><br>' +
+	'Secret:' +
+	'<input type="password" name="secret" placeholder="Password" />' +
+	'<br><br>' +
 
-		'Building Name:' +
-		'<input type="text" name="buildingname" placeholder="Evans Hall" />' +
-		'<br><br>' +
+	'Building Name:' +
+	'<input type="text" name="buildingname" placeholder="Evans Hall" />' +
+	'<br><br>' +
 
-		'Institute Name:' +
-		'<input type="text" name="institutename" placeholder="UCBerkeley" />' +
-		'<br><br>' +
+	'Institute Name:' +
+	'<input type="text" name="institutename" placeholder="UCBerkeley" />' +
+	'<br><br>' +
 
-		'Floor Name:' +
-		'<input type="text" name="floorname" placeholder="1" />' +
-		'<br><br>' +
+	'Floor Name:' +
+	'<input type="text" name="floorname" placeholder="1" />' +
+	'<br><br>' +
 
-		'Floor Map URL:' +
-		'<input type="text" name="url" placeholder="url://floor.jpg" />' +
-		'<br><br>' +
+	'Floor Map URL:' +
+	'<input type="text" name="url" placeholder="url://floor.jpg" />' +
+	'<br><br>' +
 
-		'<button type="submit">Submit</button>' +
-		'</form>';        
-		res.send(html);		
-	});
-	app.post('/createfloor', function (req, res) {
-		if (req.body.secret != config.secureUpload) { 
-			var html = 'Upload unauthorized!';
-			return res.send(html);
-		};	
-		if (!req.body.institutename) {
-			var html = 'Upload failed, institute not provided.';
-			return res.send(html);		
-		};
-		if (!req.body.buildingname) {
-			var html = 'Upload failed, building not provided.';
-			return res.send(html);		
-		};
-		if (!req.body.floorname) {
-			var html = 'Upload failed, floor not provided.';
-			return res.send(html);		
-		};
-		if (!req.body.url) {
-			var html = 'Upload failed, url not provided.';
-			return res.send(html);		
-		};
-		Institute.findOne({
-			name: req.body.institutename
-		}, function (err, institute) {
-			if (err) throw err;
-			if (!institute) {
-				var html = 'Upload failed, institute not found.';
-				return res.send(html);			
-			};
-
+	'<button type="submit">Submit</button>' +
+	'</form>';        
+	return res.send(html);		
+});
+app.post('/createfloor', function (req, res) {
+	if (req.body.secret != config.secureUpload) { 
+		var html = 'Upload unauthorized!';
+		return res.send(html);
+	};	
+	if (!req.body.institutename) {
+		var html = 'Upload failed, institute not provided.';
+		return res.send(html);		
+	};
+	if (!req.body.buildingname) {
+		var html = 'Upload failed, building not provided.';
+		return res.send(html);		
+	};
+	if (!req.body.floorname) {
+		var html = 'Upload failed, floor not provided.';
+		return res.send(html);		
+	};
+	if (!req.body.url) {
+		var html = 'Upload failed, url not provided.';
+		return res.send(html);		
+	};
+	Institute.findOne({
+		name: req.body.institutename
+	}, function (err, institute) {
+		if (err) throw err;
+		if (!institute) {
+			var html = 'Upload failed, institute not found.';
+			return res.send(html);			
+		} else {
 			Building.findOne({
 				name: req.body.buildingname
 			}, function (err, building) {
 				if (!building) {
 					var html = 'Upload failed, building not found.';
 					return res.send(html);	
+				} else {
+					Floor.find({
+						'_id': { $in: building.floors }
+					}, function (err, floors) {
+						if (Object.getOwnPropertyNames(floors).length === 0) {
+							var html = 'Upload failed, floor exists.';
+							return res.send(html);
+						} else {
+							var schema = {
+								name: req.body.floorname,
+								map: req.body.url
+							};
+							var floor = new Floor(schema);
+							floor.save(function (err, floor) {
+								if (err) throw err;
+								building.floors.push(floor._id);
+								building.save(function (err) {
+									if (err) throw err;
+									var html = floor.name + ' uploaded.';
+									return res.send(html);	
+								});		
+							});
+						};
+					});
 				};
-				var schema = {
-					name: req.body.floorname,
-					map: req.body.url
-				}
-				var floor = new Floor(schema);
-				floor.save(function (err, floor) {
-					if (err) throw err;
-					building.floors.push(floor._id);
-					building.save(function (err) {
-						if (err) throw err;
-						var html = floor.name + ' uploaded.';
-						return res.send(html);	
-					});		
-				});
 			});
-		});
+		};
 	});
-
+});
 /*
 	End
 */
@@ -699,26 +888,26 @@ app.post('/createbuilding', function (req, res) {
 	@return
 		success: false, message: 'Failed to authenticate token.'
 		success: false, message: 'No token provided.'
-		*/
-		app.use(function (req, res, next) {
-			var token = req.body.token || req.query.token || req.headers['token'];
-			if (token) {
-				User.findOne({ token: token }, function (err, user) {
-					if (err) throw err;
-					if (!user) {
-						return res.status(403).json({ success: false, message: 'Failed to authenticate token.' });   
-					} else {
-						req.user_id = user._id;
-						next();
-					};
-				});
+*/
+app.use(function (req, res, next) {
+	var token = req.body.token || req.query.token || req.headers['token'];
+	if (token) {
+		User.findOne({ token: token }, function (err, user) {
+			if (err) throw err;
+			if (!user) {
+				return res.status(403).json({ success: false, message: 'Failed to authenticate token.' });   
 			} else {
-				return res.send({ 
-					success: false, 
-					message: 'No token provided.' 
-				});
+				req.user_id = user._id;
+				next();
 			};
 		});
+	} else {
+		return res.send({ 
+			success: false, 
+			message: 'No token provided.' 
+		});
+	};
+});
 /*
 	End
 */
@@ -740,7 +929,7 @@ app.post('/createbuilding', function (req, res) {
 		success: false, message: 'Update location failed. User not found.'
 		success: false, message: 'Invalid location.'
 		success: true, message: 'Location updated.'
-		*/
+*/
 // Validation
 var validateUploadLocationParams = function (req, callback) {
 	location = req.body.location;
@@ -943,7 +1132,7 @@ app.post('/creategroup', function (req, res) {
 });
 /*
 	End
-	*/
+*/
 
 /*
 	+---------------------+
@@ -956,7 +1145,7 @@ app.post('/creategroup', function (req, res) {
 		invite: objectId for the group you want to join
 	@rtn
 
-	*/
+*/
 // Validation
 
 // Validation middleware
@@ -964,12 +1153,12 @@ app.post('/creategroup', function (req, res) {
 // Request handler
 /*
 	End
-	*/
+*/
 
 
 /* 
 	Server setup
-	*/
+*/
 	var server = app.listen(process.env.PORT || 8080, function () {
 		var host = server.address().address;
 		var port = server.address().port;

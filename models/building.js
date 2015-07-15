@@ -5,12 +5,19 @@ var ObjectId    = Schema.ObjectId;
 var buildingSchema = new Schema ({
 	name:               { type: String, index: true },
 	floors:             [Schema.Types.ObjectId],
-	coordinates: {
+	fourCoordinates: {
 		coordinate1: [Number],
 		coordinate2: [Number],
 		coordinate3: [Number],
 		coordinate4: [Number]
 	},
+	twoCoordinates: {
+		coordinatesw: [Number],
+		coordinatene: [Number]
+	},
+	height: Number,
+	width: Number,
+	bearing: Number,
 	location: {
 		type: [Number],
 		index: '2dsphere'

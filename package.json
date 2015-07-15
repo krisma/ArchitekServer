@@ -9,6 +9,7 @@
     "url": "kriswjma.me"
   },
   "dependencies": {
+    "amazon-s3-url-signer": "0.0.7",
     "apn": "^1.7.4",
     "async": "^1.3.0",
     "aws-sdk": "^2.1.38",
