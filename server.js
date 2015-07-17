@@ -329,7 +329,13 @@ app.post('/createinstitute', function (req, res) {
 app.get('/getinstitutenames', function (req, res) {
 	Institute.find({}, function (err, institutes) {
 		if (err) throw err;
-		return res.json({ success: true, institutes: institutes });
+		async.map(institutes,
+			function (institute, callback) {
+				callback(err, institute.name)
+			},
+			function (err, results) {
+				return res.json({ success: true, institutes: results });
+			});
 	});
 });
 /*
@@ -642,7 +648,13 @@ app.post('/createbuilding', function (req, res) {
 app.get('/getbuildingnames', function (req, res) {
 	Building.find({}, function (err, buildings) {
 		if (err) throw err;
-		return res.json({ success: true, buildings: buildings });
+		async.map(buildings,
+			function (building, callback) {
+				callback(err, building.name)
+			},
+			function (err, results) {
+				return res.json({ success: true, buildings: results });
+			});
 	});
 });
 /*
