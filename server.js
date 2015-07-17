@@ -19,6 +19,7 @@ var underscore   = require('underscore');
 var morgan       = require('morgan');
 var uuid         = require('node-uuid');
 var sig          = require('amazon-s3-url-signer');
+
 // var AWS          = require('aws-sdk');
 // var S3FS         = require('s3fs');
 // var multiparty   = require('connect-multiparty');
@@ -161,9 +162,9 @@ app.post('/skipsignup', function (req, res) {
 		token: token
 	};
 	var user = new User(tmp);
-	user.save(function (err) {
+	user.save(function (err, user) {
 		if (err) throw err;
-		return res.send({ success: true, token: token });	
+		return res.send({ success: true, token: token, id: user._id });	
 	});
 });
 
