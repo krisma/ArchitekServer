@@ -11,6 +11,7 @@ var Building     = require('./models/building.js');
 var Floor        = require('./models/floor.js');
 var Group        = require('./models/group.js');
 var User         = require('./models/user.js');
+var Chat         = require('./models/chat.js');
 var mongoose     = require('mongoose');
 var apn          = require('apn');
 var crypto       = require('crypto');
@@ -49,6 +50,87 @@ var decryptPassword = function (password, callback) {
 app.get('/welcome', function (req, res) {
 	return res.send('Welcome!');
 });
+
+
+/*
+	+------------------+
+	| Get Chats Nearby |
+	+------------------+
+	> Get a list of all the chats nearby
+	
+	Created at V0.1.0
+	@params
+		coordinate: the numeral coordinate of a location (lat, lng)
+	@return 
+	@errors
+
+*/
+app.get('/getchatsnearby', function (req, res) {
+	var coordinate = req.query.coordinate || req.headers['coordinate'];
+	if (!coordinate) {
+		return res.json({ success: false, message: 'Coordinate not provided.' })
+	};
+	var arrayOfCoordinates = [];
+	var arrayOfCoordinatesInString = coordinate.split(',');
+	for (var i=0; i < 2; i++) {
+		if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+			return res.json({ success: false, message: 'Coordinate not float.' })
+		}
+		arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[1 - i]);
+	};
+	console.log(arrayOfCoordinates);
+	if (arrayOfCoordinates[0] > 180 || arrayOfCoordinates[0] < -180 || arrayOfCoordinates[1] > 90 || arrayOfCoordinates[1] < -90) {
+		return res.json({ success: false, message: 'Coordinates out of bound.' });
+	};
+	Chat.find({
+		location: { '$nearSphere': arrayOfCoordinates,
+		'$maxDistance': 1/(6378 * 4)
+		}
+	}, function (err, chats) {
+		if (err) throw err;
+		return res.json({ success: true, chats: chats});
+	});
+});
+/*
+	End
+*/
+
+
+
+/*
+	+-------------+
+	| Update Chat |	
+	+-------------+
+	> Update the current status of a chat
+	
+	Created at V0.1.0
+	@params
+		chat_id: the id of the chat the user tries to update
+	@return
+	@errors
+
+*/
+app.get('/updatechat', function (req, res) {
+	var chat_id = req.query.chat_id || req.headers['chat_id'];
+	if (!chat_id) {
+		return res.json({ success: false, message: 'Chat id not provided.' });
+	};
+	Chat.findOne({
+		_id: chat_id
+	}, function (err, chat) {
+		if (err) throw err;
+		if (!chat) {
+			return res.json({ success: false, message: 'Chat not found.' });
+		};
+		return res.json({ success: true, chat: chat });
+	});
+});
+
+/*
+	End
+*/
+
+
 /*
 	+---------+
 	| Sign Up |
@@ -57,13 +139,13 @@ app.get('/welcome', function (req, res) {
 	@params
 		email: email address in form of <string>@<string>.<string>
 		password: password should contain at least one of 0-9, a-z, A-Z, and has length of 6-16, inclusive.
-	@rtn
+	@return
 		success: false, message: 'Email not provided.'
 		success: false, message: 'Password not provided.'
 		success: false, message: 'Invalid password.'
 		success: false, message: 'Invalid email.'
 		success: true, token: "YNVadwya9cu39m0c3c..."
-		*/
+*/
 // Validation
 var validateEmail = function (email, callback) {
 	var re = /\S+@\S+\.\S+/;
@@ -144,6 +226,9 @@ app.post('/signup', function (req, res) {
 	> The user may skip signup during alpha test, however his 
 
 	Created at V0.0.1
+	Updated at V0.0.2
+	> Now it returns user's id after registration
+
 	@params
 		secret: the secret on client to bypass registration
 	@return
@@ -170,7 +255,7 @@ app.post('/skipsignup', function (req, res) {
 
 /*
 	End
-	*/
+*/
 /* 
 	+---------+
 	| Sign In |
@@ -240,7 +325,7 @@ app.post('/signin', function (req, res) {
 });
 /*
 	End
-	*/
+*/
 
 
 
@@ -925,7 +1010,155 @@ app.use(function (req, res, next) {
 	End
 */
 
+/*
+	+-------------+
+	| Create Chat |
+	+-------------+
+	> Create a chat so other users can join
 
+	Created at V0.1.0
+	@params
+		name: give a name to this chat, may be the room number
+		location: the location of the chat
+	@return
+	@errors
+
+*/
+app.post('/createchat', function (req, res) {
+	if (!req.body.name) {
+		return res.json({ success: false, message: 'Name not provided.'});
+	};
+	if (!req.body.location) {
+		return res.json({ success: false, message: 'Location not provided.'});
+	};
+	var arrayOfCoordinates = [];
+	var arrayOfCoordinatesInString = req.body.location.split(',');
+	for (var i=0; i < 2; i++) {
+		if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+			var html = 'Upload failed, coordinates not floats.';
+			return res.send(html);			
+		};
+		arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[1 - i]);
+		var location = arrayOfCoordinates;
+	};
+	User.findOne({
+		_id: req.user_id
+	}, function (err, user) {
+		if (err) throw err;
+		if (!user) {
+			return res.json({ success: false, message: 'Create chat failed. User not found.' });
+		};
+		var participants = [];
+		participants[0] = user._id;
+		var schema = {
+			name: req.body.name,
+			location: location,
+			active: true,
+			participants: participants
+		};
+		var chat = new Chat(schema);
+		chat.save(function (err, chat) {
+			if (err) throw err;
+			return res.json({ success: true, chat_id: chat._id })
+		});
+	});
+	
+});
+/*
+	End
+*/
+/*
+	+-----------+
+	| Join chat |
+	+-----------+
+	> Join an existing chat
+
+	Created at V0.1.0
+	@params
+		chat_id: the id of the chat the user tries to join
+	@return
+	@errors
+
+*/
+app.post('/joinchat', function (req, res) {
+
+	User.findOne({
+		_id: req.user_id
+	}, function (err, user) {
+		if (err) throw err;
+		if (!user) {
+			return res.json({ success: false, message: 'Join chat failed. User not found.' });
+		};
+		Chat.findOne({
+			_id: req.body.chat_id
+		}, function (err, chat) {
+			if (err) throw err;
+			if (!chat) {
+				return res.json({ success: false, message: 'Join chat failed. Chat not found.' });
+			};
+			if (!chat.active) {
+				return res.json({ success: false, message: 'Join chat failed. Chat not active.' });
+			};
+			if (chat.participants.indexOf(user._id) > -1) {
+				return res.json({ success: false, message: 'Join chat failed. Already in.' });
+			};
+			chat.participants.push(user._id);
+			chat.save(function (err) {
+				if (err) throw err;
+				return res.json({ success: true, message: 'Join chat successfully.' });
+			});
+		});
+	});
+});
+/*
+	End
+*/
+
+/*
+	+-----------+
+	| Quit Chat |
+	+-----------+
+	> Quit the chat the user joined before
+
+	Created at V0.1.0
+	@params
+		chat_id: the id of the chat to quit
+	@return
+	@errors
+
+*/
+app.post('/quitchat', function (req, res) {
+	if (!req.body.chat_id) {
+		return res.json({ success: false, message: 'Chat id not provided.' });
+	};
+	Chat.findOne({
+		_id: req.body.chat_id
+	}, function (err, chat) {
+		if (err) throw err;
+		if (!chat) {
+			return res.json({ success: false, message: 'Chat not found.' });
+		};
+		var index = chat.participants.indexOf(req.user_id);
+		console.log(req.user_id);
+		if (index > -1) {
+			chat.participants.splice(index, 1);
+			if (chat.participants.length == 0) {
+				chat.remove();
+			};
+			chat.save(function (err) {
+				if (err) throw err;
+				return res.json({ success: true, message: 'Quit chat.' });
+			})
+			
+		} else {
+			return res.json({ success: false, message: 'Not in chat.' });
+		};
+		
+	});	
+});
+/*
+	End
+*/
 
 /*
 	+-----------------+
