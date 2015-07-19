@@ -1,6 +1,3 @@
-/*
-	Architek Server V 0.0.1
-*/
 var http         = require('http');
 var express      = require('express');
 var app          = express();
@@ -19,7 +16,7 @@ var config       = require('./config.js');
 var underscore   = require('underscore');
 var morgan       = require('morgan');
 var uuid         = require('node-uuid');
-var sig          = require('amazon-s3-url-signer');
+// var sig          = require('amazon-s3-url-signer');
 
 // var AWS          = require('aws-sdk');
 // var S3FS         = require('s3fs');
@@ -1410,6 +1407,3 @@ app.post('/creategroup', function (req, res) {
 		var port = server.address().port;
 		console.log('Architek listening at http://%s:%s', host, port);
 	});
-/*
-	End
-*/
