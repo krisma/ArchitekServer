@@ -81,7 +81,7 @@ app.get('/getchatsnearby', function (req, res) {
 	};
 	Chat.find({
 		location: { '$nearSphere': arrayOfCoordinates,
-		'$maxDistance': 1/(6378 * 4)
+		'$maxDistance': 1/(6378)
 		}
 	}, function (err, chats) {
 		if (err) throw err;
