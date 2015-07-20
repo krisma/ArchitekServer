@@ -122,12 +122,11 @@ app.get('/getchatsbylocation', function (req, res) {
 	if (arrayOfCoordinates[0] > 180 || arrayOfCoordinates[0] < -180 || arrayOfCoordinates[1] > 90 || arrayOfCoordinates[1] < -90) {
 		return res.json({ success: false, message: 'Coordinates out of bound.' });
 	};
-	Chat.findOne({
+	Chat.find({
 		location: arrayOfCoordinates
-		
-	}, function (err, chat) {
+	}, function (err, chats) {
 		if (err) throw err;
-		return res.json({ success: true, chat: chat});
+		return res.json({ success: true, chats: chats});
 	});
 });
 /*
