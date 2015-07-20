@@ -92,7 +92,47 @@ app.get('/getchatsnearby', function (req, res) {
 	End
 */
 
+/*
+	+-----------------------+
+	| Get Chats By Building |
+	+-----------------------+
+	> Get a list of all the chats according to building name
+	
+	Created at V0.1.0
+	@params
+		buildinglocation: the name of the building
+	@return 
+	@errors
 
+*/
+app.get('/getchatsbylocation', function (req, res) {
+	var coordinate = req.query.location || req.headers['location'];
+	if (!coordinate) {
+		return res.json({ success: false, message: 'Location not provided.' })
+	};
+	var arrayOfCoordinates = [];
+	var arrayOfCoordinatesInString = coordinate.split(',');
+	for (var i=0; i < 2; i++) {
+		if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+			return res.json({ success: false, message: 'Coordinate not float.' })
+		}
+		arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[1 - i]);
+	};
+	console.log(arrayOfCoordinates);
+	if (arrayOfCoordinates[0] > 180 || arrayOfCoordinates[0] < -180 || arrayOfCoordinates[1] > 90 || arrayOfCoordinates[1] < -90) {
+		return res.json({ success: false, message: 'Coordinates out of bound.' });
+	};
+	Chat.findOne({
+		location: arrayOfCoordinates
+		
+	}, function (err, chat) {
+		if (err) throw err;
+		return res.json({ success: true, chat: chat});
+	});
+});
+/*
+	End
+*/
 
 /*
 	+-------------+
@@ -1038,26 +1078,36 @@ app.post('/createchat', function (req, res) {
 		arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[1 - i]);
 		var location = arrayOfCoordinates;
 	};
-	User.findOne({
-		_id: req.user_id
-	}, function (err, user) {
+	Building.findOne({
+		location: location
+	}, function (err, building) {
 		if (err) throw err;
-		if (!user) {
-			return res.json({ success: false, message: 'Create chat failed. User not found.' });
+		if (building) {
+			User.findOne({
+				_id: req.user_id
+			}, function (err, user) {
+				if (err) throw err;
+				if (!user) {
+					return res.json({ success: false, message: 'Create chat failed. User not found.' });
+				};
+				var participants = [];
+				participants[0] = user._id;
+				var schema = {
+					name: req.body.name,
+					location: location,
+					active: true,
+					participants: participants
+				};
+				var chat = new Chat(schema);
+				chat.save(function (err, chat) {
+					if (err) throw err;
+					return res.json({ success: true, chat_id: chat._id })
+				});
+			});
+	
+		} else {
+			return res.json({ success: false, message: 'Create chat failed. Building not found.' });
 		};
-		var participants = [];
-		participants[0] = user._id;
-		var schema = {
-			name: req.body.name,
-			location: location,
-			active: true,
-			participants: participants
-		};
-		var chat = new Chat(schema);
-		chat.save(function (err, chat) {
-			if (err) throw err;
-			return res.json({ success: true, chat_id: chat._id })
-		});
 	});
 	
 });
