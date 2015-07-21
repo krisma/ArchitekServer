@@ -1100,7 +1100,7 @@ app.post('/createchat', function (req, res) {
 				var chat = new Chat(schema);
 				chat.save(function (err, chat) {
 					if (err) throw err;
-					return res.json({ success: true, chat_id: chat._id })
+					return res.json({ success: true, chat: chat })
 				});
 			});
 	
