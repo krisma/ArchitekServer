@@ -1151,7 +1151,7 @@ app.post('/joinchat', function (req, res) {
 			chat.participants.push(user._id);
 			chat.save(function (err) {
 				if (err) throw err;
-				return res.json({ success: true, message: 'Join chat successfully.' });
+				return res.json({ success: true, chat: chat });
 			});
 		});
 	});
