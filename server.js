@@ -1046,6 +1046,75 @@ app.use(function (req, res, next) {
 	End
 */
 
+
+app.post('/createevent', function (req, res) {
+	if (!req.body.name) {
+		return res.json({ success: false, message: 'Name not provided.'});
+	};
+	if (!req.body.location) {
+		return res.json({ success: false, message: 'Location not provided.'});
+	};
+	if (!req.body.title) {
+		return res.json({ success: false, message: 'Title not provided.'});
+	};
+	if (!req.body.content) {
+		return res.json({ success: false, message: 'Content not provided.'});
+	};
+	if (!req.body.time) {
+		return res.json({ success: false, message: 'Time not provided.'});
+	};
+	var arrayOfCoordinates = [];
+	var arrayOfCoordinatesInString = req.body.location.split(',');
+	for (var i=0; i < 2; i++) {
+		if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+			var html = 'Create event failed, coordinates not floats.';
+			return res.send(html);			
+		};
+		arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[1 - i]);
+		
+	};
+	var location = arrayOfCoordinates;
+	var schema = {
+					title: req.body.title,
+					location: location,
+					content: req.body.content
+					time: req.body.time
+				};
+	var event = new Event(schema);
+	event.save(function (err, chat) {
+		if (err) throw err;
+		return res.json({ success: true, event: event })
+	});
+
+
+})
+
+app.get('/geteventsnearby', function (req, res) {
+	var coordinate = req.query.coordinate || req.headers['coordinate'];
+	if (!coordinate) {
+		return res.json({ success: false, message: 'Coordinate not provided.' })
+	};
+	var arrayOfCoordinates = [];
+	var arrayOfCoordinatesInString = coordinate.split(',');
+	for (var i=0; i < 2; i++) {
+		if (isNaN(parseFloat(arrayOfCoordinatesInString[i]))) {
+			return res.json({ success: false, message: 'Coordinate not float.' })
+		}
+		arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[1 - i]);
+	};
+	console.log(arrayOfCoordinates);
+	if (arrayOfCoordinates[0] > 180 || arrayOfCoordinates[0] < -180 || arrayOfCoordinates[1] > 90 || arrayOfCoordinates[1] < -90) {
+		return res.json({ success: false, message: 'Coordinates out of bound.' });
+	};
+	Event.find({
+		location: { '$nearSphere': arrayOfCoordinates,
+		'$maxDistance': 1/(6378 * 4)
+	}
+	}, function (err, events) {
+	if (err) throw err;
+	return res.json({ success: true, events: events });
+	});
+});
 /*
 	+-------------+
 	| Create Chat |
@@ -1075,8 +1144,8 @@ app.post('/createchat', function (req, res) {
 			return res.send(html);			
 		};
 		arrayOfCoordinates[i] = parseFloat(arrayOfCoordinatesInString[1 - i]);
-		var location = arrayOfCoordinates;
 	};
+	var location = arrayOfCoordinates;
 	Building.findOne({
 		location: location
 	}, function (err, building) {
